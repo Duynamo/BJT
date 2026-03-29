@@ -1,0 +1,70 @@
+
+Sheet: BJT_試験用
+Columns: ['Unnamed: 0', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3', 'Unnamed: 4', 'Unnamed: 5']
+Total rows: 551
+First row: {'Unnamed: 1': 'Day 1'}
+
+Sheet: BJT_松浦先生
+Columns: ['No', '言葉', 'フリガナ', 'Unnamed: 3', '意味', '使い方']
+Total rows: 129
+First row: {'No': 'Day 1'}
+
+Sheet: Group 1
+Columns: ['Từ vựng', 'Nghĩa (VN)', 'Ví dụ']
+Total rows: 1057
+First row: {'Từ vựng': '相見積もり', 'Nghĩa (VN)': 'Lấy báo giá của nhiều nhà cung cấp để đối chiếu so sánh', 'Ví dụ': '・この件については、相見積もりを取って価格を検証しよう\n・オフィス清掃については、相見積もりを取って検討しましょう。'}
+
+Sheet: Group 2
+Columns: ['Từ vựng', 'Nghĩa(VN)', 'Ví dụ', 'Unnamed: 3']
+Total rows: 1576
+First row: {'Từ vựng': '相見積もりを取る', 'Nghĩa(VN)': 'bảng báo giá của nhà cung cấp', 'Ví dụ': '相見積もりを取って価格を検討する'}
+
+Sheet: ややこしい日本語
+Columns: ['Unnamed: 0', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3']
+Total rows: 96
+First row: {}
+
+Sheet: Trang tính6
+Columns: ['Unnamed: 0', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3']
+Total rows: 884
+First row: {'Unnamed: 1': '赤字補填 /～ほてん/', 'Unnamed: 2': 'Bù vào phần lỗ'}
+
+Sheet: ビジネス日本語(会社にて)
+Columns: ['Unnamed: 0', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3']
+Total rows: 241
+First row: {'Unnamed: 0': '接続詞'}
+
+Sheet: わかるビジネス日本語
+Columns: ['Unnamed: 0', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3']
+Total rows: 3
+First row: {'Unnamed: 0': '索引', 'Unnamed: 1': 'さくいん'}
+
+Sheet: Group 3
+Columns: ['Từ vựng', 'Nghĩa(VN)']
+Total rows: 998
+First row: {'Từ vựng': '赤字補填', 'Nghĩa(VN)': ' bù lỗ'}
+
+Sheet: Group 4
+Columns: ['Từ vựng', 'Nghĩa (VN)']
+Total rows: 119
+First row: {'Từ vựng': '厭わない', 'Nghĩa (VN)': ' không ngại ngần giúp, làm '}
+
+Sheet: Group 5
+Columns: ['Từ vựng', 'Nghĩa(VN)']
+Total rows: 144
+First row: {'Từ vựng': 'ゴシック体の活字', 'Nghĩa(VN)': 'chữ kiểu in đậm'}
+
+Sheet: ビジネスメール
+Columns: ['日本語学習_ズイ', '内容', 'Unnamed: 2', 'Unnamed: 3']
+Total rows: 20
+First row: {'内容': '社内のメールの構造：', 'Unnamed: 2': '社内のメールの構造：\n①CC/ BCC\n②件名\n③相手の名前\n④挨拶文／自分の名前\n⑤主文\n⑥結びの文'}
+
+Sheet: ビジネス電話対応
+Columns: ['Unnamed: 0', '目的', 'Unnamed: 2', 'フィルター用']
+Total rows: 16
+First row: {'目的': '部署の人と話してほしいという電話の対応', 'Unnamed: 2': 'お待たせいたして申し訳ございません。\nあいにくただ今Ａさんが～しております／でございます。\n\nー＞間もなく終わりそうですが、少々お待ちいただけますでしょうか／このままお待たせ頂けませんでしょうか。それとも、後ほどこちらからかけ直しいたしましょうか。\n\u3000\u3000申し訳ございません。田中部長はただ今打合せに参加されまして、少々長くなりそうですので、終わり次第こちらからお電話いたしましょうか。'}
+
+Sheet: メールテンプレート
+Columns: ['No', '項目', 'タイミング', 'メール本文', '留意点']
+Total rows: 37
+First row: {'No': 1.0, '項目': '依頼メールの\n返信', 'タイミング': '他部署から依頼メールが来た際', 'メール本文': '本間様\n\nお疲れ様です。\nデジタル推進部のティです。\n\nお送りいただいた蜆貝の発注図データを確認し、\n図面枚数より相違点レポートは「3月上旬」に作成できると思います。\n\nよろしければ、作成した相違点レポートについて\nご説明させていただきたく、下記の候補のうち、\nご都合のよい時間帯をお教えいただけないでしょうか。\n---\n3/3[金]午後\n3/6[月]終日\n3/7[火]終日\n---\n\n1時間程度の打ち合わせを予定しております。\n\nお手数ですが、ご検討のほどよろしくお願いします。', '留意点': '業務を検討の上、余裕をもって返信すること'}

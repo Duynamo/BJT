@@ -1,0 +1,12 @@
+Columns: ['Từ vựng', 'Nghĩa(VN)']
+Total rows: 144
+Row 0: {'Từ vựng': 'ゴシック体の活字', 'Nghĩa(VN)': 'chữ kiểu in đậm'}
+Row 1: {'Từ vựng': 'ロゴ', 'Nghĩa(VN)': 'logo'}
+Row 2: {'Từ vựng': '書体', 'Nghĩa(VN)': ' phông chữ'}
+Row 3: {'Từ vựng': '板', 'Nghĩa(VN)': 'bảng'}
+Row 4: {'Từ vựng': '看板', 'Nghĩa(VN)': 'bảng'}
+Row 5: {'Từ vựng': 'この時勢', 'Nghĩa(VN)': 'thời điểm này'}
+Row 6: {'Từ vựng': '単刀直入', 'Nghĩa(VN)': ' nói thẳng ra'}
+Row 7: {'Từ vựng': 'そうするとこの場で決められる。', 'Nghĩa(VN)': 'nếu được thì có thế chốt ngay bây giờ'}
+Row 8: {'Từ vựng': '考えらないこともない', 'Nghĩa(VN)': 'có thể cân nhắc'}
+Row 9: {'Từ vựng': 'ネックになる', 'Nghĩa(VN)': 'khó khăn'}
