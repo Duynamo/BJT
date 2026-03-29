@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BJT Business Japanese Mastery</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container is-top-nav">
+        <!-- Top Navbar -->
+        <nav class="top-navbar">
+            <div class="logo">
+                <h2><i class="fa-solid fa-language"></i> BJT Mastery</h2>
+            </div>
+            
+            <button class="btn-hardcore" id="btnHardcoreNav">
+                <i class="fa-solid fa-fire"></i> KHÔ MÁU BJT
+            </button>
+
+            <!-- Horizontal scrollable tabs -->
+            <div class="nav-tabs-wrapper">
+                <button class="scroll-btn scroll-left"><i class="fa-solid fa-chevron-left"></i></button>
+                <div class="nav-tabs" id="navTabs">
+                    <!-- Tabs populated via JS -->
+                </div>
+                <button class="scroll-btn scroll-right"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+            <div class="nav-user">
+                <div class="voice-selector">
+                    <i class="fa-solid fa-headset"></i> Giọng đọc:
+                    <select id="voiceSelect">
+                        <option value="Microsoft Nanami">Nanami (Nữ)</option>
+                        <option value="Microsoft Keita">Keita (Nam)</option>
+                        <option value="Microsoft Ayumi">Ayumi (Nữ)</option>
+                        <option value="Microsoft Ichiro">Ichiro (Nam)</option>
+                    </select>
+                </div>
+                <button class="btn-settings" id="btnSettings" title="Cài đặt">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
+        </nav>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Learning Toolbar (Hidden in Dashboard Grid View) -->
+            <header class="topbar learning-header" id="learningHeader" style="display: none;">
+                <button class="btn-back" id="btnBack"><i class="fa-solid fa-arrow-left"></i> Quay lại</button>
+                <h1 id="currentAlbumTitle">Album Name</h1>
+                <div class="mode-toggles">
+                    <button id="btnFlashcard" class="active"><i class="fa-solid fa-layer-group"></i> Flashcards</button>
+                    <button id="btnList"><i class="fa-solid fa-list"></i> Danh sách</button>
+                </div>
+            </header>
+            
+            <div class="content-body" id="contentBody">
+                
+                <!-- Hardcore Dashboard View -->
+                <div class="hardcore-dashboard" id="hardcoreDashboard" style="display: none;">
+                    <div class="hc-header">
+                        <h2>Mục Tiêu Khô Máu BJT 🔥</h2>
+                        <button class="btn-primary" id="btnEditPlan"><i class="fa-solid fa-pen"></i> Đổi Kế Hoạch</button>
+                    </div>
+                    
+                    <div class="hc-stats-container">
+                        <div class="hc-stat-card">
+                            <div class="hc-stat-title">Từ Mới Hôm Nay</div>
+                            <div class="hc-stat-value" id="hcNewCount">--</div>
+                        </div>
+                        <div class="hc-stat-card warning">
+                            <div class="hc-stat-title">Quên Tới Nơi (Cần Ôn Lập Tức)</div>
+                            <div class="hc-stat-value" id="hcReviewCount">--</div>
+                        </div>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 40px;">
+                        <button class="btn-hardcore-start" id="btnStartHardcoreSession">
+                            BẮT ĐẦU CHIẾN ĐẤU <i class="fa-solid fa-rocket"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Dashboard / Album Grid View -->
+                <div class="album-grid-view" id="albumGridView">
+                    <!-- Intro Banner -->
+                    <div class="intro-banner">
+                        <i class="fa-solid fa-circle-info banner-icon"></i>
+                        <span>Lộ trình học từ vựng BJT Business Japanese được phân bổ rõ ràng. Vui lòng bấm vào Từng Day để bắt đầu ôn tập!</span>
+                    </div>
+
+                    <div class="grid-header">
+                        <h2 id="gridCategoryTitle">Vui lòng tải dữ liệu</h2>
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="searchInput" placeholder="Tìm kiếm tên bài (Day)...">
+                        </div>
+                    </div>
+                    
+                    <div class="album-grid" id="albumGrid">
+                        <!-- Cards populated via JS -->
+                    </div>
+                </div>
+
+                <!-- Learning View (Flashcard / List injected here) -->
+                <div class="learning-view" id="learningView" style="display: none;">
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Cài đặt Phím tắt</h3>
+                <button class="btn-close" id="btnCloseSettings"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Phím nổi bật: Đọc từ vựng chính (Vocab)</label>
+                    <input type="text" id="inputKeyVocab" maxlength="1" placeholder="Ví dụ: v">
+                </div>
+                <div class="form-group">
+                    <label>Phím nổi bật: Đọc câu ví dụ (Example)</label>
+                    <input type="text" id="inputKeyExample" maxlength="1" placeholder="Ví dụ: p">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-save" id="btnSaveSettings">Lưu cài đặt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hardcore Wizard Modal -->
+    <div class="modal-overlay" id="wizardModal">
+        <div class="modal-content" style="width: 500px;">
+            <div class="modal-header">
+                <h3>Kế Hoạch Khô Máu BJT 🎯</h3>
+                <button class="btn-close" id="btnCloseWizard"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5;">Chọn các chuyên đề trọng điểm và thiết lập số ngày bạn muốn hoàn thành BJT.</p>
+                <div class="form-group">
+                    <label>Quỹ thời gian (Số ngày hoàn thành):</label>
+                    <input type="number" id="inputTargetDays" min="1" max="365" value="30" style="text-transform: none;">
+                </div>
+                <div class="form-group" style="margin-top: 20px;">
+                    <label>Chọn Bộ Từ Vựng Mục Tiêu:</label>
+                    <div class="category-checkboxes" id="wizardCategories">
+                        <!-- Checkboxes populated via JS -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-save" id="btnGeneratePlan"><i class="fa-solid fa-bolt"></i> Siết Target</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Make sure to load BJT data -->
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

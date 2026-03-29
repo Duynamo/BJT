@@ -1,0 +1,22 @@
+Columns: ['Unnamed: 0', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3', 'Unnamed: 4', 'Unnamed: 5']
+Total rows: 551
+Row 0: {"Unnamed: 1": "Day 1"}
+Row 1: {"Unnamed: 1": "赤字補填", "Unnamed: 2": "ほてん", "Unnamed: 4": "bù lỗ"}
+Row 2: {"Unnamed: 1": "撤収", "Unnamed: 2": "てっしゅう", "Unnamed: 4": "dọn đồ ra về (gian hàng trưng bày, triển lãm), rút quân"}
+Row 3: {"Unnamed: 1": "撤退", "Unnamed: 2": "てったい", "Unnamed: 4": "dừng hoạt động, rút lui (khỏi thị trường vì thua lỗ)"}
+Row 4: {"Unnamed: 1": "撤去", "Unnamed: 2": "てっきょ", "Unnamed: 4": "loại bỏ, tháo dỡ"}
+Row 5: {"Unnamed: 1": "決算報告", "Unnamed: 2": "けっさんほうこく", "Unnamed: 4": "báo cáo tài chính"}
+Row 6: {"Unnamed: 1": "社長補佐", "Unnamed: 2": "しゃちょうほさ", "Unnamed: 4": "trợ lý giám đốc"}
+Row 7: {"Unnamed: 1": "非常に苦情を言う人", "Unnamed: 4": "người hay càu nhàu"}
+Row 8: {"Unnamed: 1": "契約締結"}
+Row 9: {"Unnamed: 1": "陳情", "Unnamed: 2": "ちんじょう", "Unnamed: 4": "lời thỉnh cầu, kiến nghị", "Unnamed: 5": "彼らは仕事を与えてほしいと政府に陳情している"}
+Row 10: {"Unnamed: 1": "一本締め", "Unnamed: 2": "いっぽんじめ", "Unnamed: 4": "vỗ tay chào mừng theo nhịp 3 cái 1 hiệp (3-3-1)"}
+Row 11: {"Unnamed: 1": "万歳三唱", "Unnamed: 2": "ばんざいさんしょう", "Unnamed: 4": "hô vạn tuế 3 lần"}
+Row 12: {"Unnamed: 1": "歓談", "Unnamed: 2": "かんだん", "Unnamed: 4": "trò chuyện tán gẫu", "Unnamed: 5": "大きな肥でのご歓談はご遠慮ください\n食後の歓談を楽しむ"}
+Row 13: {"Unnamed: 1": "ウェブ観覧"}
+Row 14: {"Unnamed: 1": "精査", "Unnamed: 2": "せいさ", "Unnamed: 4": "điều tra, xem xét kỹ lưỡng", "Unnamed: 5": "ちゃんと依頼段階で精査してよ"}
+Row 15: {"Unnamed: 1": "𠮟責", "Unnamed: 2": "しっせき", "Unnamed: 4": "khiển trách"}
+Row 16: {"Unnamed: 1": "人事考課", "Unnamed: 2": "じんじこうか", "Unnamed: 4": "đánh giá hiệu quả làm việc của nhân viên"}
+Row 17: {"Unnamed: 1": "捺印", "Unnamed: 2": "なついん", "Unnamed: 4": "con dấu sau khi đã đóng lên giấy"}
+Row 18: {"Unnamed: 1": "出迎え", "Unnamed: 2": "でむかえ", "Unnamed: 4": "sự đi đón, việc ra đón", "Unnamed: 5": "空港で友達を出迎える"}
+Row 19: {"Unnamed: 1": "もてなす", "Unnamed: 4": "tiếp đãi", "Unnamed: 5": "手厚いもてなす\nもてなす歓迎会を開催する"}
