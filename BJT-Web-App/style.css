@@ -1082,3 +1082,13 @@ body {
 
 ruby { ruby-position: over; }
 rt { color: var(--text-secondary); font-size: 0.6em; }
+
+/* Plan Manager Hardcore */
+.plan-list-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.plan-i
