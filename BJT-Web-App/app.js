@@ -37,6 +37,23 @@ document.addEventListener('DOMContentLoaded', () => {
         hcTimerMode: 'down' // up or down
     };
 
+    // ── Apply xlsx/CSV override data if any ──
+    try {
+        const csvOverride = localStorage.getItem('BJT_CSV_OVERRIDE');
+        if (csvOverride) {
+            const overrideData = JSON.parse(csvOverride);
+            // '__large_dataset__' is a flag set when data was too big for localStorage
+            // In that case we just keep data.js as-is (data was applied in memory at upload time, lost on refresh)
+            if (typeof overrideData === 'object' && overrideData !== null) {
+                Object.keys(overrideData).forEach(cat => {
+                    BJT_DATA[cat] = overrideData[cat];
+                });
+                // Re-sync categories list
+                state.categories = Object.keys(BJT_DATA);
+            }
+        }
+    } catch(e) { console.warn('Override load failed', e); }
+
     // Load progress from localStorage
     try {
         const stored = localStorage.getItem('BJT_KNOWN_WORDS');
@@ -95,6 +112,49 @@ document.addEventListener('DOMContentLoaded', () => {
             saveStats(); // Sync stats too
         } catch (e) {
              console.warn("Could not save progress", e);
+        }
+    }
+
+    // ── Session Restore: Save/Load current album position ──
+    function saveSession() {
+        try {
+            if (state.currentAlbum && state.currentCategory) {
+                localStorage.setItem('BJT_SESSION', JSON.stringify({
+                    category: state.currentCategory,
+                    album: state.currentAlbum,
+                    index: state.currentIndex,
+                    mode: state.currentLearningMode
+                }));
+            }
+        } catch(e) {}
+    }
+
+    function clearSession() {
+        localStorage.removeItem('BJT_SESSION');
+    }
+
+    // Yêu cầu 1 & 3: Lưu phiên học "Khô Máu" hiện tại vào key riêng biệt theo planId
+    function saveCurrentHardcoreSession() {
+        const planId = state.activePlanId;
+        if (!planId || !state.hardcoreSession) return;
+
+        try {
+            const sessionState = {
+                currentIndex: state.hardcoreIndex,
+                words: state.hardcoreSession // Snapshot của từ vựng và trạng thái Nhớ/Quên
+            };
+            localStorage.setItem(`BJT_HARDCORE_SESSION_${planId}`, JSON.stringify(sessionState));
+        } catch (e) {
+            console.warn("Could not save hardcore session for plan " + planId, e);
+            showToast('Lỗi: Không thể lưu tiến độ. Bộ nhớ có thể đã đầy.', 'error');
+        }
+    }
+
+    // Xóa session của plan hiện tại
+    function clearCurrentHardcoreSession() {
+        const planId = state.activePlanId;
+        if (planId) {
+            localStorage.removeItem(`BJT_HARDCORE_SESSION_${planId}`);
         }
     }
 
@@ -170,6 +230,14 @@ document.addEventListener('DOMContentLoaded', () => {
             btnSettings.addEventListener('click', () => {
                 inputKeyVocab.value = state.hotkeyVocab;
                 inputKeyExample.value = state.hotkeyExample;
+                // Show xlsx status
+                const xlsxStatusEl = document.getElementById('xlsxStatusText');
+                if (xlsxStatusEl) {
+                    const hasOverride = !!localStorage.getItem('BJT_CSV_OVERRIDE');
+                    xlsxStatusEl.innerHTML = hasOverride
+                        ? '<i class="fa-solid fa-circle-check" style="color:#22c55e;"></i> Đang dùng dữ liệu từ file xlsx đã upload. Bấm "Đặt lại gốc" để hoàn về data.js gốc.'
+                        : '<i class="fa-regular fa-circle-dot" style="color:var(--text-secondary);"></i> Đang dùng dữ liệu gốc từ data.js.';
+                }
                 settingsModal.classList.add('open');
             });
             btnCloseSettings.addEventListener('click', () => {
@@ -181,6 +249,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('BJT_HOTKEY_VOCAB', state.hotkeyVocab);
                 localStorage.setItem('BJT_HOTKEY_EXAMPLE', state.hotkeyExample);
                 settingsModal.classList.remove('open');
+            });
+        }
+
+        // xlsx update handlers
+        const xlsxFileInput = document.getElementById('xlsxFileInput');
+        const btnResetXlsx = document.getElementById('btnResetXlsx');
+
+        if (xlsxFileInput) {
+            xlsxFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) handleXlsxUpdate(file);
+                xlsxFileInput.value = ''; // reset so same file can be re-uploaded
+            });
+        }
+
+        if (btnResetXlsx) {
+            btnResetXlsx.addEventListener('click', () => {
+                if (!confirm('Bạn có chắc muốn xóa dữ liệu xlsx đã upload và dùng lại data.js gốc không?\nTrang sẽ được tải lại.')) return;
+                localStorage.removeItem('BJT_CSV_OVERRIDE');
+                localStorage.removeItem('BJT_SESSION');
+                location.reload();
             });
         }
         
@@ -296,11 +385,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function loadAlbum(category, albumName) {
+    function loadAlbum(category, albumName, startIndex) {
         state.currentCategory = category;
         state.currentAlbum = albumName;
         state.words = BJT_DATA[category].filter(w => w._album === albumName);
-        state.currentIndex = 0;
+        state.currentIndex = (startIndex && startIndex < state.words.length) ? startIndex : 0;
         
         els.currentAlbumTitle.textContent = `${category.replace(/_/g, ' ')} / ${formatAlbumTitle(albumName)}`;
         switchMainView('learning');
@@ -456,6 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnMarkKnown.innerHTML = '<i class="fa-solid fa-check"></i> Đã thuộc';
             }
             saveProgress();
+            saveSession();
         });
 
         // Bind events for flashcard
@@ -488,6 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnPrev.addEventListener('click', () => {
             if (state.currentIndex > 0) {
                 state.currentIndex--;
+                saveSession();
                 renderLearningContent();
             }
         });
@@ -495,6 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnNext.addEventListener('click', () => {
              if (state.currentIndex < state.words.length - 1) {
                 state.currentIndex++;
+                saveSession();
                 renderLearningContent();
             }
         });
@@ -633,9 +725,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function openHardcoreMode() {
         const plan = state.hardcorePlans[state.activePlanId];
         if (!plan) {
-            if (Object.keys(state.hardcorePlans).length > 0) {
-                renderPlanManager();
-            } else {
+            renderPlanManager(); // Always render the vault/manager to ensure UI structure includes btnAddNewPlan
+            if (Object.keys(state.hardcorePlans).length === 0) {
                 populateWizardCategories();
                 document.getElementById('wizardModal').classList.add('open');
             }
@@ -725,7 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (poolNew.length === 0) {
-            alert("Các album bạn chọn đã được học hết rồi! Vui lòng chọn nội dung khác.");
+            alert("Các album bạn chọn đã được học hết rồi! Vui lòng chọn nội dung khác hoặc xóa bớt lộ trình cũ.");
             return;
         }
 
@@ -826,10 +917,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderHardcoreDashboard() {
         const plan = state.hardcorePlans[state.activePlanId];
-        if (!plan) {
-            openHardcoreMode();
-            return;
-        }
+        if (!plan) return;
 
         const hcDash = document.getElementById('hardcoreDashboard');
         const currentChunk = plan.dailyChunks[plan.activeDay - 1] || [];
@@ -882,7 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let btnHtml = '';
         if (totalRemaining === 0) {
-            btnHtml = `<button class="btn-hardcore-start" style="background: var(--success); cursor: default; margin-bottom:15px;">Hoàn Thành Lộ Trình Lần Này <i class="fa-solid fa-check-double"></i></button>
+            btnHtml = `<button class="btn-hardcore-start" style="background: var(--success); cursor: default; margin-bottom:15px;">Hoàn Thành Lượt Học Hôm Nay <i class="fa-solid fa-check-double"></i></button>
                        <br/><button class="btn-primary" id="btnAdvanceSession" style="background: var(--warning); color: #000;"><i class="fa-solid fa-forward-step"></i> Học Vượt (Qua Ngày Tiếp Theo)</button>`;
         } else {
             btnHtml = `<button class="btn-hardcore-start" id="btnStartHardcoreSession">BẮT ĐẦU CHIẾN ĐẤU (${totalRemaining} Từ) <i class="fa-solid fa-rocket"></i></button>`;
@@ -897,10 +985,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         hcDash.innerHTML = `
             <div class="hc-header">
-                <h2>Lộ Trình: ${plan.name} 🔥</h2>
+                <h2>Lộ trình: ${plan.name} 🔥</h2>
                 <div style="display:flex; gap:10px;">
-                    <button class="btn-primary" id="btnSwitchPlan"><i class="fa-solid fa-rotate"></i> Đổi Lộ Trình</button>
-                    <button class="btn-primary" id="btnEditPlan" style="background:var(--danger); color:white;"><i class="fa-solid fa-trash"></i> Xóa Lộ Trình</button>
+                    <button class="btn-primary" id="btnSwitchPlan"><i class="fa-solid fa-rotate"></i> Đổi Lộ trình</button>
+                    <button class="btn-primary" id="btnEditPlan" style="background:var(--danger); color:white;"><i class="fa-solid fa-trash"></i> Xóa Lộ trình</button>
                 </div>
             </div>
             ${daysHtml}
@@ -925,7 +1013,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const startBtn = hcDash.querySelector('#btnStartHardcoreSession');
-        if (startBtn) startBtn.addEventListener('click', startHardcoreSession);
+        if (startBtn) startBtn.addEventListener('click', checkAndStartHardcoreSession);
 
         const advanceBtn = hcDash.querySelector('#btnAdvanceSession');
         if (advanceBtn) advanceBtn.addEventListener('click', advanceHardcoreDay);
@@ -955,14 +1043,83 @@ document.addEventListener('DOMContentLoaded', () => {
         renderHardcoreDashboard();
     }
 
-    function startHardcoreSession() {
+    function checkAndStartHardcoreSession() {
         const plan = state.hardcorePlans[state.activePlanId];
         if (!plan) return;
+
+        const savedSessionRaw = localStorage.getItem(`BJT_HARDCORE_SESSION_${plan.id}`);
+        if (savedSessionRaw) {
+            try {
+                const savedSession = JSON.parse(savedSessionRaw);
+                if (savedSession.words && savedSession.words.length > 0 && savedSession.currentIndex > 0 && savedSession.currentIndex < savedSession.words.length) {
+                    showResumeModal(plan);
+                    return;
+                }
+            } catch (e) {
+                console.error("Error parsing saved hardcore session, starting new.", e);
+            }
+        }
+        startNewHardcoreSession(plan.id);
+    }
+
+    function showResumeModal(plan) {
+        const modal = document.getElementById('resumeHcModal');
+        document.getElementById('resumePlanName').textContent = plan.name;
+
+        // Thay mới nút để xóa event listener cũ
+        const oldContinueBtn = document.getElementById('btnHcContinue');
+        const newContinueBtn = oldContinueBtn.cloneNode(true);
+        oldContinueBtn.parentNode.replaceChild(newContinueBtn, oldContinueBtn);
+
+        const oldStartNewBtn = document.getElementById('btnHcStartNew');
+        const newStartNewBtn = oldStartNewBtn.cloneNode(true);
+        oldStartNewBtn.parentNode.replaceChild(newStartNewBtn, oldStartNewBtn);
+
+        const oldCloseBtn = document.getElementById('btnCloseResumeHcModal');
+        const newCloseBtn = oldCloseBtn.cloneNode(true);
+        oldCloseBtn.parentNode.replaceChild(newCloseBtn, oldCloseBtn);
+
+        newContinueBtn.onclick = () => {
+            modal.classList.remove('open');
+            resumeHardcoreSession(plan.id);
+        };
+
+        newStartNewBtn.onclick = () => {
+            if (confirm('Học lại từ đầu sẽ reset vị trí thẻ hiện tại, nhưng vẫn giữ lại lịch sử Nhớ/Quên của các từ trong phiên này. Bạn có chắc chắn?')) {
+                modal.classList.remove('open');
+                startNewHardcoreSession(plan.id, true); 
+            }
+        };
+
+        newCloseBtn.onclick = () => modal.classList.remove('open');
+        modal.classList.add('open');
+    }
+
+    function resumeHardcoreSession(planId) {
+        const savedSessionRaw = localStorage.getItem(`BJT_HARDCORE_SESSION_${planId}`);
+        if (!savedSessionRaw) {
+            startNewHardcoreSession(planId);
+            return;
+        }
+        const savedSession = JSON.parse(savedSessionRaw);
+        state.hardcoreSession = savedSession.words;
+        state.hardcoreIndex = savedSession.currentIndex;
+        switchToHardcoreLearningView();
+    }
+
+    function startNewHardcoreSession(planId, forceReset = false) {
+        const plan = state.hardcorePlans[planId];
+        if (!plan) return;
+
+        if (forceReset) {
+            if (plan.dailyChunks) plan.dailyChunks.forEach(chunk => chunk.forEach(item => delete item.sessionResult));
+            if (plan.queueReview) plan.queueReview.forEach(item => delete item.sessionResult);
+            savePlans();
+        }
 
         const currentChunk = plan.dailyChunks[plan.activeDay - 1] || [];
         const remainingNew = currentChunk.filter(i => i.sessionResult !== 'pass');
         const remainingReview = plan.queueReview.filter(i => i.sessionResult !== 'pass');
-
         const sessionWords = [...remainingReview, ...remainingNew];
 
         if (sessionWords.length === 0) {
@@ -972,14 +1129,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         state.hardcoreSession = sessionWords;
         state.hardcoreIndex = 0;
+        saveCurrentHardcoreSession();
+        switchToHardcoreLearningView();
+    }
 
+    function switchToHardcoreLearningView() {
         els.learningHeader.style.display = 'flex';
         els.learningView.style.display = 'block';
         document.getElementById('hardcoreDashboard').style.display = 'none';
-
         els.btnList.style.display = 'none';
         els.btnFlashcard.style.display = 'none';
-
         state.currentMainView = 'hardcore_learning';
         renderHardcoreFlashcard();
     }
@@ -1020,6 +1179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderHardcoreFlashcard() {
         const plan = state.hardcorePlans[state.activePlanId];
         if (!plan || !state.hardcoreSession || state.hardcoreIndex >= state.hardcoreSession.length) {
+            clearHardcoreSession();
             switchMainView('hardcore');
             els.btnList.style.display = 'inline-block';
             els.btnFlashcard.style.display = 'inline-block';
@@ -1045,7 +1205,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dayListHtml += `<div class="hc-day-item ${cls}" style="cursor: pointer;" onclick="window.switchToDay(${i})" title="Chuyển sang Day ${i}">${icon} Day ${i}</div>`;
         }
 
-        // 2. Generate Map HTML
+        // 2. Generate Map HTML 
         let mapHtml = '';
         state.hardcoreSession.forEach((sItem, idx) => {
             let cls = '';
@@ -1126,6 +1286,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="hc-timer-controls">
                             <button class="btn-timer" id="btnTimerPlayPause" title="Play/Pause">${playPauseIcon}</button>
                             <button class="btn-timer" id="btnTimerReset" title="Làm mới"><i class="fa-solid fa-rotate-right"></i></button>
+                            <!-- Yêu cầu 1.2: Thêm nút Save -->
+                            <button class="btn-timer" id="btnSaveHcProgress" title="Lưu tiến độ"><i class="fa-solid fa-floppy-disk"></i></button>
                         </div>
                         
                         <div class="hc-timer-setup">
@@ -1177,20 +1339,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('btnHcPass').addEventListener('click', () => {
             processSrs(item.key, true);
             item.sessionResult = 'pass';
-            savePlans();
             state.hardcoreIndex++;
+            saveCurrentHardcoreSession();
             renderHardcoreFlashcard();
-            // update dashboard background cache optionally
-            renderHardcoreDashboard();
         });
 
         document.getElementById('btnHcReject').addEventListener('click', () => {
             processSrs(item.key, false);
             item.sessionResult = 'fail';
-            savePlans();
             state.hardcoreIndex++;
+            saveCurrentHardcoreSession();
             renderHardcoreFlashcard();
-            renderHardcoreDashboard();
         });
 
         // Timer Logic
@@ -1198,8 +1357,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const btnTimerReset = document.getElementById('btnTimerReset');
         const hcTimerInput = document.getElementById('hcTimerInput');
         const hcTimerDisplay = document.getElementById('hcTimerDisplay');
-
         const updateTimerDisplay = () => { hcTimerDisplay.innerText = formatTime(state.hcTimerValue); };
+
+        const btnSaveHcProgress = document.getElementById('btnSaveHcProgress');
+        if (btnSaveHcProgress) {
+            btnSaveHcProgress.addEventListener('click', () => {
+                saveCurrentHardcoreSession();
+                showToast('✅ Đã lưu tiến độ!', 'success');
+            });
+        }
 
         btnTimerPlayPause.addEventListener('click', () => {
             if (state.hcTimerIsRunning) {
@@ -1263,6 +1429,72 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function ensureTodayQueueExists() {
+        const todayStr = getTodayStr();
+        const plan = state.hardcorePlans[state.activePlanId];
+        if (!plan) return;
+
+        // migration: check if using old "categories" instead of "selectedAlbums"
+        if (plan.categories && !plan.selectedAlbums) {
+            console.log("Migrating old plan to new album-based system...");
+            plan.selectedAlbums = plan.categories.flatMap(cat => (state.albums[cat] || []).map(alb => `${cat}|${alb}`));
+            delete plan.categories;
+        }
+
+        if (plan.lastQueueDate === todayStr) {
+            return; // Queue is up to date
+        }
+
+        // It's a new day. Reset session results from the previous day.
+        if (plan.dailyChunks) {
+            plan.dailyChunks.forEach(chunk => {
+                if (chunk) chunk.forEach(item => {
+                    if (item.sessionResult) delete item.sessionResult;
+                });
+            });
+        }
+        if (plan.queueReview) {
+            plan.queueReview.forEach(item => {
+                if (item.sessionResult) delete item.sessionResult;
+            });
+        }
+
+        let poolReview = [];
+        const nowTime = new Date().getTime();
+
+        const catMap = {};
+        if (plan.selectedAlbums) {
+            plan.selectedAlbums.forEach(ak => {
+                const parts = ak.split('|');
+                if (parts.length < 2) return;
+                const [c, a] = parts;
+                if (!catMap[c]) catMap[c] = new Set();
+                catMap[c].add(a);
+            });
+        }
+
+        Object.keys(catMap).forEach(cat => {
+            if (!BJT_DATA[cat]) return;
+            BJT_DATA[cat].forEach(w => {
+                if (!catMap[cat].has(w._album)) return;
+
+                const key = getWordKey(cat, w._album, w.tu_vung);
+                const stat = state.wordStats[key];
+
+                if (stat && stat.status === 1) {
+                    if (stat.nextDate <= nowTime) {
+                        poolReview.push({ wordObj: w, key: key, cat: cat, album: w._album, type: 'review' });
+                    }
+                }
+            });
+        });
+
+        plan.queueReview = poolReview;
+        plan.lastQueueDate = todayStr;
+
+        savePlans();
+    }
+
     function bindEvents() {
         // Hardcore bindings
         const btnHardcoreNav = document.getElementById('btnHardcoreNav');
@@ -1273,9 +1505,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const btnGeneratePlan = document.getElementById('btnGeneratePlan');
         if (btnGeneratePlan) btnGeneratePlan.addEventListener('click', generatePlan);
-
-        const btnStartHc = document.getElementById('btnStartHardcoreSession');
-        if (btnStartHc) btnStartHc.addEventListener('click', startHardcoreSession);
 
         els.searchInput.addEventListener('input', (e) => {
             state.searchQuery = e.target.value;
@@ -1297,7 +1526,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         els.btnBack.addEventListener('click', () => {
-            switchMainView('dashboard');
+            if (state.currentMainView === 'hardcore_learning') {
+                // Không xóa session khi quay lại, để người dùng có thể học tiếp
+                switchMainView('hardcore');
+            } else {
+                clearSession();
+                switchMainView('dashboard');
+            }
         });
 
         // Top tab scrolling
@@ -1347,9 +1582,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (state.currentMainView === 'hardcore_learning') {
                     if (e.key === 'ArrowRight' && state.hardcoreIndex < state.hardcoreSession.length - 1) {
                         state.hardcoreIndex++;
+                        saveCurrentHardcoreSession(); // Auto-save
                         renderHardcoreFlashcard();
                     } else if (e.key === 'ArrowLeft' && state.hardcoreIndex > 0) {
                         state.hardcoreIndex--;
+                        saveCurrentHardcoreSession(); // Auto-save
                         renderHardcoreFlashcard();
                     } else if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                         e.preventDefault();
@@ -1365,9 +1602,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (e.key === 'ArrowRight' && state.currentIndex < state.words.length - 1) {
                 state.currentIndex++;
+                saveSession();
                 renderLearningContent();
             } else if (e.key === 'ArrowLeft' && state.currentIndex > 0) {
                 state.currentIndex--;
+                saveSession();
                 renderLearningContent();
             } else if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                 e.preventDefault(); // prevent scroll
@@ -1375,6 +1614,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (card) card.classList.toggle('is-flipped');
             }
         });
+    }
+    
+    function generateTodayQueue() {
+        ensureTodayQueueExists();
+        renderHardcoreDashboard();
     }
 
     function renderPlanManager() {
@@ -1385,9 +1629,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let plansHtml = `
             <div class="hc-header" style="margin-bottom: 30px;">
-                <h2 style="font-size: 1.8rem;"><i class="fa-solid fa-layer-group"></i> Kho Lộ Trình</h2>
+                <h2 style="font-size: 1.8rem;"><i class="fa-solid fa-layer-group"></i> Kho Lộ trình</h2>
                 <button class="btn-hardcore-start" id="btnAddNewPlan" style="width: auto; padding: 12px 25px; font-size: 1rem; margin: 0;">
-                    <i class="fa-solid fa-plus-circle"></i> Tạo Lộ Trình Mới
+                    <i class="fa-solid fa-plus-circle"></i> Tạo Lộ trình Mới
                 </button>
             </div>
             <div class="plan-list-container">
@@ -1473,5 +1717,260 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ── xlsx Vocabulary Update Feature (using SheetJS) ──
+    function applyNewData(newData) {
+        // Merge into BJT_DATA
+        Object.keys(newData).forEach(cat => { BJT_DATA[cat] = newData[cat]; });
+
+        // Save override to localStorage
+        try {
+            localStorage.setItem('BJT_CSV_OVERRIDE', JSON.stringify(newData));
+        } catch(e) {
+            // Data too large for localStorage — store key list only as a flag
+            localStorage.setItem('BJT_CSV_OVERRIDE', '"__large_dataset__"');
+        }
+
+        // Re-sync state
+        state.categories = Object.keys(BJT_DATA);
+        state.categories.forEach(cat => {
+            if (!BJT_DATA[cat]) return;
+            const albumSet = new Set();
+            if (Array.isArray(BJT_DATA[cat])) {
+                BJT_DATA[cat].forEach(w => { if (w._album) albumSet.add(w._album); });
+            }
+            state.albums[cat] = Array.from(albumSet);
+        });
+        state.categories = state.categories.filter(cat => state.albums[cat] && state.albums[cat].length > 0);
+
+        // Refresh UI
+        document.getElementById('settingsModal').classList.remove('open');
+        renderTopNav();
+        if (state.currentMainView === 'learning') {
+            clearSession();
+            switchMainView('dashboard');
+        } else {
+            switchMainView(state.currentMainView || 'dashboard');
+        }
+    }
+
+    function handleXlsxUpdate(file) {
+        if (!file) return;
+
+        // Check SheetJS available
+        if (typeof XLSX === 'undefined') {
+            showToast('❌ Thư viện SheetJS chưa tải xong. Vui lòng thử lại sau vài giây.', 'error');
+            return;
+        }
+
+        // Show progress UI
+        const progressWrap = document.getElementById('xlsxProgressWrap');
+        const progressBar  = document.getElementById('xlsxProgressBar');
+        const progressLabel= document.getElementById('xlsxProgressLabel');
+        const statusEl     = document.getElementById('xlsxStatusText');
+        if (progressWrap) progressWrap.style.display = 'block';
+        if (progressBar)  progressBar.style.width = '10%';
+        if (progressLabel) progressLabel.textContent = 'Đang đọc file...';
+        
+        // Create a lookup map for existing phien_am to preserve it
+        const phienAmMap = new Map();
+        Object.values(BJT_DATA).flat().forEach(word => {
+            if (word.tu_vung && word.phien_am) {
+                // Use the plain text version of the word as the key
+                const plainTuVung = String(word.tu_vung).replace(/<[^>]+>/g, '').trim();
+                if (!phienAmMap.has(plainTuVung)) {
+                    phienAmMap.set(plainTuVung, word.phien_am);
+                }
+            }
+        });
+
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                if (progressBar)  progressBar.style.width = '30%';
+                if (progressLabel) progressLabel.textContent = 'Đang parse Excel...';
+
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array', codepage: 65001 });
+
+                const TARGET_GROUPS = workbook.SheetNames.filter(name => name.toLowerCase().startsWith('group'));
+                const WORDS_PER_DAY = 30;
+                const newData = {};
+                let totalCount = 0;
+                let processed = 0;
+
+                for (const groupName of TARGET_GROUPS) {
+
+                    if (progressBar)  progressBar.style.width = `${30 + (processed / TARGET_GROUPS.length) * 60}%`;
+                    if (progressLabel) progressLabel.textContent = `Đang xử lý ${groupName}...`;
+
+                    const sheet = workbook.Sheets[groupName];
+                    // Convert to array-of-arrays to find headers manually (column names vary)
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+                    if (rows.length < 2) { processed++; continue; }
+
+                    // First row = headers
+                    const headers = rows[0].map(h => String(h).toLowerCase().trim());
+
+                    // Find column indices (flexible: handles "Nghĩa (VN)" vs "Nghĩa(VN)" etc.)
+                    const findCol = (...keywords) => {
+                        for (const kw of keywords) {
+                            const idx = headers.findIndex(h => h.includes(kw));
+                            if (idx !== -1) return idx;
+                        }
+                        return -1;
+                    };
+
+                    const colWord  = findCol('từ vựng', 'tu vung', 'vocab', 'word', '言葉', '言語');
+                    const colFuri  = findCol('furigana', 'phien am', 'phien_am');
+                    const colMean  = findCol('nghĩa', 'y_nghia', 'nghia', 'meaning', '意味');
+                    const colEx    = findCol('ví dụ', 'vi du', 'example', '例文', '使い方', '使い方');
+
+                    if (colWord === -1) { processed++; continue; } // skip sheet with no vocab column
+
+                    newData[groupName] = [];
+                    let currentDay  = 1;
+                    let dayCount    = 0;
+
+                    for (let r = 1; r < rows.length; r++) {
+                        const row   = rows[r];
+                        const word  = String(row[colWord] ?? '').trim();
+                        if (!word || word === '' || word.toLowerCase() === 'nan') continue;
+
+                        const furiganaFromExcel = colFuri !== -1 ? String(row[colFuri] ?? '').trim() : '';
+                        const meaning = colMean !== -1 ? String(row[colMean] ?? '').trim() : '';
+                        const rawEx   = colEx   !== -1 ? String(row[colEx]   ?? '').trim() : '';
+
+                        const phienAm = furiganaFromExcel || phienAmMap.get(word) || '';
+
+                        // Build song_ngu pair (JP + VI)
+                        let exJP = '', exVI = '';
+                        if (rawEx && rawEx !== 'nan') {
+                            // Excel cells sometimes have \n separating JP and VI lines
+                            const parts = rawEx.split(/\n|\r\n|\r/);
+                            exJP = parts[0].trim();
+                            exVI = parts.length > 1 ? parts.slice(1).join(' ').trim() : '';
+                            // If no VI part, use meaning as the translation
+                            if (!exVI) exVI = meaning;
+                        }
+
+                        const albumName = `Day ${currentDay}`;
+
+                        newData[groupName].push({
+                            _album:    albumName,
+                            tu_vung:   word,
+                            phien_am:  phienAm,
+                            tu_loai:   'BJT',
+                            y_nghia:   meaning,
+                            song_ngu:  exJP ? [exJP, exVI] : []
+                        });
+
+                        dayCount++;
+                        if (dayCount >= WORDS_PER_DAY) {
+                            dayCount = 0;
+                            currentDay++;
+                        }
+                    }
+
+                    totalCount += newData[groupName].length;
+                    processed++;
+                }
+
+                if (totalCount === 0) throw new Error('Không đọc được từ nào. Hãy kiểm tra file có các sheet tên "Group X" không.');
+
+                if (progressBar)  progressBar.style.width = '95%';
+                if (progressLabel) progressLabel.textContent = 'Đang lưu dữ liệu...';
+
+                applyNewData(newData);
+
+                if (progressBar)  progressBar.style.width = '100%';
+                if (progressWrap) setTimeout(() => { progressWrap.style.display = 'none'; }, 1500);
+                if (statusEl) statusEl.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#22c55e;"></i> Đang dùng dữ liệu từ file xlsx đã upload (${totalCount} từ).`;
+
+                showToast(`✅ Cập nhật thành công ${totalCount} từ vựng từ ${file.name}!`, 'success');
+
+            } catch(err) {
+                if (progressWrap) progressWrap.style.display = 'none';
+                showToast(`❌ Lỗi parse xlsx: ${err.message}`, 'error');
+                console.error(err);
+            }
+        };
+        reader.onerror = () => {
+            if (progressWrap) progressWrap.style.display = 'none';
+            showToast('❌ Không đọc được file. Vui lòng thử lại.', 'error');
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function showToast(message, type) {
+        let toast = document.getElementById('bjtToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'bjtToast';
+            document.body.appendChild(toast);
+        }
+        toast.className = `bjt-toast ${type || ''}`;
+        toast.innerHTML = message;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 4000);
+    }
+
+    // ── Restore session after init ──
+    function restoreSession() {
+        try {
+            const saved = localStorage.getItem('BJT_SESSION');
+            if (!saved) return;
+            const { category, album, index, mode } = JSON.parse(saved);
+            if (!category || !album) return;
+            if (!BJT_DATA[category]) return;
+            const wordsInAlbum = BJT_DATA[category].filter(w => w._album === album);
+            if (wordsInAlbum.length === 0) return;
+
+            // Valid session found — restore
+            state.currentLearningMode = mode || 'flashcard';
+            if (mode === 'list') {
+                els.btnList.classList.add('active');
+                els.btnFlashcard.classList.remove('active');
+            } else {
+                els.btnFlashcard.classList.add('active');
+                els.btnList.classList.remove('active');
+            }
+            loadAlbum(category, album, index);
+        } catch(e) { console.warn('Session restore failed', e); }
+    }
+
     init();
+    restoreSession();
 });
+
+// ── Toast CSS injected dynamically ──
+(function() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .bjt-toast {
+            display: none;
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-family: 'Inter', sans-serif;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+            z-index: 99999;
+            animation: toastIn 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .bjt-toast.success { border-color: #22c55e; background: #052e16; color: #4ade80; }
+        .bjt-toast.error   { border-color: #ef4444; background: #2d0a0a; color: #f87171; }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+    `;
+    document.head.appendChild(style);
+})();
