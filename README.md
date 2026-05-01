@@ -1,4 +1,4 @@
-# 🇯🇵 BJT Flashcard Web App - Chinh phục Tiếng Nhật Thương Mại 🚀
+# 🇯🇵 BJT Flashcard Web App - Chinh phục Tiếng Nhật Thương Mại 🚀 
 
 ![GitHub License](https://img.shields.io/github/license/DuyDynamo/BJT)
 ![GitHub stars](https://img.shields.io/github/stars/DuyDynamo/BJT?style=social)
