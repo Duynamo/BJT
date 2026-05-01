@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
         words: [], // array of word objects
         currentIndex: 0,
         knownWords: new Set(), // Set of "wordKey"
+        starredWords: new Set(), // Set of "wordKey"
         searchQuery: '',
         selectedVoice: localStorage.getItem('BJT_VOICE') || 'Microsoft Nanami',
         hotkeyVocab: localStorage.getItem('BJT_HOTKEY_VOCAB') || 'v',
@@ -60,6 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (stored) {
             state.knownWords = new Set(JSON.parse(stored));
         }
+
+        const storedStarred = localStorage.getItem('BJT_STARRED_WORDS');
+        if (storedStarred) {
+            state.starredWords = new Set(JSON.parse(storedStarred));
+        }
         
         const storedStats = localStorage.getItem('BJT_WORD_STATS');
         if (storedStats) {
@@ -93,6 +99,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveStats() {
         try { localStorage.setItem('BJT_WORD_STATS', JSON.stringify(state.wordStats)); } catch (e) {}
+    }
+
+    function saveStarredWords() {
+        try {
+            localStorage.setItem('BJT_STARRED_WORDS', JSON.stringify(Array.from(state.starredWords)));
+        } catch (e) {
+            console.warn("Could not save starred words", e);
+        }
     }
 
     function savePlans() {
@@ -165,6 +179,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // For legacy usages:
     function getWordKeyObj(wordObj) {
         return getWordKey(state.currentCategory, wordObj._album, wordObj.tu_vung);
+        const category = wordObj._category || state.currentCategory;
+        return getWordKey(category, wordObj._album, wordObj.tu_vung);
     }
 
     // Pre-process data
@@ -470,6 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const wKey = getWordKeyObj(word);
         const isKnown = state.knownWords.has(wKey);
+        const isStarred = state.starredWords.has(wKey);
 
         els.learningView.innerHTML = `
             <div class="flashcard-container">
@@ -491,7 +508,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="card-back">
                             <div style="display: flex; justify-content: space-between; width: 100%; align-items: flex-start; margin-bottom: 15px;">
                                 <h3 style="flex-grow: 1;">${sanitizeHTML(word.tu_vung)}</h3>
-                                <button class="btn-audio play-audio-btn" style="width: 40px; height: 40px; font-size: 1rem; flex-shrink: 0;"><i class="fa-solid fa-volume-high"></i></button>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <button class="btn-star-toggle ${isStarred ? 'starred' : ''}" data-key="${wKey}" title="Đánh dấu sao từ này"><i class="fa-solid fa-star"></i></button>
+                                    <button class="btn-audio play-audio-btn" style="width: 40px; height: 40px; font-size: 1rem; flex-shrink: 0;"><i class="fa-solid fa-volume-high"></i></button>
+                                </div>
                             </div>
                             <div class="word-meta">
                                 <span class="badge-pos">${sanitizeHTML(word.tu_loai || 'vocab')}</span>
@@ -548,6 +568,22 @@ document.addEventListener('DOMContentLoaded', () => {
             saveSession();
         });
 
+        const btnStar = document.querySelector('.btn-star-toggle');
+        if (btnStar) {
+            btnStar.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const key = e.currentTarget.getAttribute('data-key');
+                if (state.starredWords.has(key)) {
+                    state.starredWords.delete(key);
+                    e.currentTarget.classList.remove('starred');
+                } else {
+                    state.starredWords.add(key);
+                    e.currentTarget.classList.add('starred');
+                }
+                saveStarredWords();
+            });
+        }
+
         // Bind events for flashcard
         const card = document.getElementById('flashcard');
         card.addEventListener('click', (e) => {
@@ -600,6 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const plainWord = word.tu_vung.replace(/<[^>]+>/g, '');
             const wKey = getWordKeyObj(word);
             const isKnown = state.knownWords.has(wKey);
+            const isStarred = state.starredWords.has(wKey);
 
             html += `
                 <div class="list-item">
@@ -620,6 +657,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="list-actions">
                         <button class="list-mark-known ${isKnown ? 'is-known' : ''}" data-key="${wKey}" title="Đánh dấu đã thuộc">
                             <i class="fa-solid fa-circle-check"></i>
+                        </button>
+                        <button class="list-star-toggle ${isStarred ? 'starred' : ''}" data-key="${wKey}" title="Đánh dấu sao từ này">
+                            <i class="fa-solid fa-star"></i>
                         </button>
                     </div>
                 </div>
@@ -658,7 +698,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 saveProgress();
             });
-        })
+        });
+
+        document.querySelectorAll('.list-star-toggle').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const wKey = e.currentTarget.getAttribute('data-key');
+                if (state.starredWords.has(wKey)) {
+                    state.starredWords.delete(wKey);
+                    e.currentTarget.classList.remove('starred');
+                } else {
+                    state.starredWords.add(wKey);
+                    e.currentTarget.classList.add('starred');
+                }
+                saveStarredWords();
+            });
+        });
+    }
+
+    function showStarredWords() {
+        if (state.starredWords.size === 0) {
+            showToast('Bạn chưa đánh dấu sao từ nào.', 'info');
+            return;
+        }
+
+        const starredWordObjects = [];
+        for (const key of state.starredWords) {
+            const [cat, album, ...rest] = key.split('_');
+            const tu_vung = rest.join('_'); // Handle cases where tu_vung might have underscores
+            
+            if (BJT_DATA[cat] && Array.isArray(BJT_DATA[cat])) {
+                const word = BJT_DATA[cat].find(w => w._album === album && w.tu_vung === tu_vung);
+                if (word) {
+                    starredWordObjects.push({ ...word, _category: cat });
+                }
+            }
+        }
+
+        state.currentCategory = null; 
+        state.currentAlbum = 'Đã sao';
+        state.words = starredWordObjects;
+        state.currentIndex = 0;
+        
+        els.currentAlbumTitle.textContent = `⭐ Từ vựng đã sao (${starredWordObjects.length} từ)`;
+        switchMainView('learning');
     }
 
     function playAudio(text, textElement, ipaElement) {
@@ -1190,6 +1272,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const item = state.hardcoreSession[state.hardcoreIndex];
         const word = item.wordObj;
         const progress = (state.hardcoreIndex / state.hardcoreSession.length) * 100;
+        const wKey = item.key;
+        const isStarred = state.starredWords.has(wKey);
         const examplesHtml = getExamplesHtml(word);
 
         els.currentAlbumTitle.textContent = `🔥 Khô Máu: Task ${state.hardcoreIndex + 1}/${state.hardcoreSession.length} | ${item.type === 'new' ? '💎 Từ Mới' : '🔄 Ôn Lại'}`;
@@ -1252,7 +1336,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="card-back">
                                     <div style="display: flex; justify-content: space-between; width: 100%; align-items: flex-start; margin-bottom: 15px;">
                                         <h3 style="flex-grow: 1;">${sanitizeHTML(word.tu_vung)}</h3>
-                                        <button class="btn-audio play-audio-btn" style="width: 40px; height: 40px; font-size: 1rem; flex-shrink: 0;"><i class="fa-solid fa-volume-high"></i></button>
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <button class="btn-star-toggle ${isStarred ? 'starred' : ''}" data-key="${wKey}" title="Đánh dấu sao từ này"><i class="fa-solid fa-star"></i></button>
+                                            <button class="btn-audio play-audio-btn" style="width: 40px; height: 40px; font-size: 1rem; flex-shrink: 0;"><i class="fa-solid fa-volume-high"></i></button>
+                                        </div>
                                     </div>
                                     <div class="word-meta">
                                         <span class="badge-pos">${sanitizeHTML(word.tu_loai || 'vocab')}</span>
@@ -1351,6 +1438,20 @@ document.addEventListener('DOMContentLoaded', () => {
             saveCurrentHardcoreSession();
             renderHardcoreFlashcard();
         });
+
+        document.querySelector('.hc-center-panel .btn-star-toggle')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const key = e.currentTarget.getAttribute('data-key');
+            if (state.starredWords.has(key)) {
+                state.starredWords.delete(key);
+                e.currentTarget.classList.remove('starred');
+            } else {
+                state.starredWords.add(key);
+                e.currentTarget.classList.add('starred');
+            }
+            saveStarredWords();
+        });
+
 
         // Timer Logic
         const btnTimerPlayPause = document.getElementById('btnTimerPlayPause');
@@ -1505,6 +1606,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const btnGeneratePlan = document.getElementById('btnGeneratePlan');
         if (btnGeneratePlan) btnGeneratePlan.addEventListener('click', generatePlan);
+
+        const btnShowStarred = document.getElementById('btnShowStarred');
+        if (btnShowStarred) {
+            btnShowStarred.addEventListener('click', showStarredWords);
+        }
 
         els.searchInput.addEventListener('input', (e) => {
             state.searchQuery = e.target.value;
@@ -1967,6 +2073,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         .bjt-toast.success { border-color: #22c55e; background: #052e16; color: #4ade80; }
         .bjt-toast.error   { border-color: #ef4444; background: #2d0a0a; color: #f87171; }
+
+        /* Star button styles */
+        .btn-star-toggle, .list-star-toggle {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 5px;
+            opacity: 0.6;
+            transition: all 0.2s ease;
+        }
+        .btn-star-toggle:hover, .list-star-toggle:hover {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+        .btn-star-toggle.starred, .list-star-toggle.starred {
+            color: var(--warning);
+            opacity: 1;
+        }
+
         @keyframes toastIn {
             from { opacity: 0; transform: translateX(-50%) translateY(20px); }
             to   { opacity: 1; transform: translateX(-50%) translateY(0); }
