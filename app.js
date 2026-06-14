@@ -35,7 +35,13 @@ document.addEventListener('DOMContentLoaded', () => {
         hcTimerValue: 0,
         hcTimerInterval: null,
         hcTimerIsRunning: false,
-        hcTimerMode: 'down' // up or down
+        hcTimerMode: 'down', // up or down
+        lastSpokenText: null,
+        currentUtterance: null,
+        cloudUser: null,
+        cloudDb: null,
+        cloudSaveTimer: null,
+        isApplyingCloudSnapshot: false
     };
 
     // ── Apply xlsx/CSV override data if any ──
@@ -99,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveStats() {
         try { localStorage.setItem('BJT_WORD_STATS', JSON.stringify(state.wordStats)); } catch (e) {}
+        scheduleCloudSave();
     }
 
     function saveStarredWords() {
@@ -107,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.warn("Could not save starred words", e);
         }
+        scheduleCloudSave();
     }
 
     function savePlans() {
@@ -118,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem('BJT_ACTIVE_PLAN_ID');
             }
         } catch (e) {}
+        scheduleCloudSave();
     }
 
     function saveProgress() {
@@ -127,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
              console.warn("Could not save progress", e);
         }
+        scheduleCloudSave();
     }
 
     // ── Session Restore: Save/Load current album position ──
@@ -178,7 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // For legacy usages:
     function getWordKeyObj(wordObj) {
-        return getWordKey(state.currentCategory, wordObj._album, wordObj.tu_vung);
         const category = wordObj._category || state.currentCategory;
         return getWordKey(category, wordObj._album, wordObj.tu_vung);
     }
@@ -315,9 +324,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function switchMainView(view) {
         state.currentMainView = view;
         
-        if (view !== 'hardcore_learning' && state.hcTimerInterval) {
-            clearInterval(state.hcTimerInterval);
-            state.hcTimerIsRunning = false;
+        if (!['learning', 'hardcore_learning'].includes(view)) {
+            pauseFocusTimer();
         }
 
         els.learningHeader.style.display = 'none';
@@ -479,6 +487,119 @@ document.addEventListener('DOMContentLoaded', () => {
         return examplesHtml;
     }
 
+    function formatTime(totalSeconds) {
+        totalSeconds = Math.max(0, parseInt(totalSeconds, 10) || 0);
+        const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const s = (totalSeconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    }
+
+    function updateFocusTimerDisplay() {
+        const display = document.getElementById('hcTimerDisplay');
+        const playPauseBtn = document.getElementById('btnTimerPlayPause');
+        if (display) display.innerText = formatTime(state.hcTimerValue);
+        if (playPauseBtn) {
+            playPauseBtn.innerHTML = state.hcTimerIsRunning
+                ? '<i class="fa-solid fa-pause"></i>'
+                : '<i class="fa-solid fa-play" style="margin-left: 3px;"></i>';
+        }
+    }
+
+    function getTimerInputMinutes() {
+        const input = document.getElementById('hcTimerInput');
+        const inputVal = parseInt(input?.value, 10);
+        return !isNaN(inputVal) && inputVal > 0 ? inputVal : 10;
+    }
+
+    function ensureTimerInitialValue() {
+        if (state.hcTimerValue === 0 && state.hcTimerMode === 'down') {
+            state.hcTimerValue = getTimerInputMinutes() * 60;
+        }
+        updateFocusTimerDisplay();
+    }
+
+    function startFocusTimer() {
+        ensureTimerInitialValue();
+        if (state.hcTimerInterval) clearInterval(state.hcTimerInterval);
+
+        state.hcTimerIsRunning = true;
+        updateFocusTimerDisplay();
+        state.hcTimerInterval = setInterval(() => {
+            if (state.hcTimerMode === 'down') {
+                if (state.hcTimerValue > 0) {
+                    state.hcTimerValue--;
+                } else {
+                    pauseFocusTimer();
+                }
+            } else {
+                state.hcTimerValue++;
+            }
+            updateFocusTimerDisplay();
+        }, 1000);
+    }
+
+    function pauseFocusTimer() {
+        if (state.hcTimerInterval) clearInterval(state.hcTimerInterval);
+        state.hcTimerInterval = null;
+        state.hcTimerIsRunning = false;
+        updateFocusTimerDisplay();
+    }
+
+    function resetFocusTimer() {
+        pauseFocusTimer();
+        state.hcTimerMode = 'down';
+        state.hcTimerValue = getTimerInputMinutes() * 60;
+        updateFocusTimerDisplay();
+    }
+
+    function renderFocusTimerWidget(extraClass = '') {
+        const startValue = state.hcTimerMode === 'down' && state.hcTimerValue > 0
+            ? Math.max(1, Math.ceil(state.hcTimerValue / 60))
+            : 10;
+        const playPauseIcon = state.hcTimerIsRunning
+            ? '<i class="fa-solid fa-pause"></i>'
+            : '<i class="fa-solid fa-play" style="margin-left: 3px;"></i>';
+
+        return `
+            <div class="hc-widget focus-timer-widget ${extraClass}">
+                <div class="hc-widget-title"><i class="fa-solid fa-stopwatch"></i> Bấm giờ tập trung</div>
+                <div class="hc-timer-display" id="hcTimerDisplay">${formatTime(state.hcTimerValue)}</div>
+                <div class="hc-timer-controls">
+                    <button class="btn-timer" id="btnTimerPlayPause" title="Bắt đầu / tạm dừng">${playPauseIcon}</button>
+                    <button class="btn-timer" id="btnTimerReset" title="Làm mới"><i class="fa-solid fa-rotate-right"></i></button>
+                </div>
+                <div class="hc-timer-setup">
+                    Đếm ngược: <input type="number" id="hcTimerInput" value="${startValue}" min="1" max="120"> phút
+                </div>
+            </div>
+        `;
+    }
+
+    function bindFocusTimerWidget() {
+        const btnTimerPlayPause = document.getElementById('btnTimerPlayPause');
+        const btnTimerReset = document.getElementById('btnTimerReset');
+        const hcTimerInput = document.getElementById('hcTimerInput');
+
+        if (!btnTimerPlayPause || !btnTimerReset || !hcTimerInput) return;
+
+        btnTimerPlayPause.addEventListener('click', () => {
+            if (state.hcTimerIsRunning) pauseFocusTimer();
+            else startFocusTimer();
+        });
+
+        btnTimerReset.addEventListener('click', resetFocusTimer);
+
+        hcTimerInput.addEventListener('change', (e) => {
+            if (state.hcTimerIsRunning) return;
+            const inputVal = parseInt(e.target.value, 10);
+            state.hcTimerMode = 'down';
+            state.hcTimerValue = (!isNaN(inputVal) && inputVal > 0 ? inputVal : 10) * 60;
+            updateFocusTimerDisplay();
+        });
+
+        ensureTimerInitialValue();
+    }
+
     function renderFlashcard() {
         const word = state.words[state.currentIndex];
         const progress = ((state.currentIndex + 1) / state.words.length) * 100;
@@ -537,6 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </button>
                     </div>
                 </div>
+                ${renderFocusTimerWidget('learning-focus-timer')}
             </div>
         `;
 
@@ -611,6 +733,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        bindFocusTimerWidget();
+
         btnPrev.addEventListener('click', () => {
             if (state.currentIndex > 0) {
                 state.currentIndex--;
@@ -629,7 +753,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderList() {
-        let html = '<div class="list-container">';
+        let html = `${renderFocusTimerWidget('learning-focus-timer list-focus-timer')}<div class="list-container">`;
         
         state.words.forEach((word) => {
             const examplesHtml = getExamplesHtml(word);
@@ -713,6 +837,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 saveStarredWords();
             });
         });
+
+        bindFocusTimerWidget();
     }
 
     function showStarredWords() {
@@ -734,6 +860,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        if (starredWordObjects.length === 0) {
+            showToast('Không tìm thấy từ đã sao trong dữ liệu hiện tại.', 'info');
+            return;
+        }
+
         state.currentCategory = null; 
         state.currentAlbum = 'Đã sao';
         state.words = starredWordObjects;
@@ -745,11 +876,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function playAudio(text, textElement, ipaElement) {
         if (!window.speechSynthesis) return;
+
+        const normalizedText = String(text || '').trim();
+        if (!normalizedText) return;
+
+        if (window.speechSynthesis.speaking && state.lastSpokenText === normalizedText) {
+            window.speechSynthesis.cancel();
+            state.currentUtterance = null;
+            state.lastSpokenText = null;
+            document.querySelectorAll('.highlight-word').forEach(el => el.classList.remove('highlight-word'));
+            return;
+        }
         
         window.speechSynthesis.cancel();
         document.querySelectorAll('.highlight-word').forEach(el => el.classList.remove('highlight-word'));
         
-        const utterance = new SpeechSynthesisUtterance(text);
+        const utterance = new SpeechSynthesisUtterance(normalizedText);
+        state.currentUtterance = utterance;
+        state.lastSpokenText = normalizedText;
         utterance.lang = 'ja-JP';
         utterance.rate = 0.9;
         
@@ -789,11 +933,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
             
-            utterance.onend = () => {
-                if (textElement) textElement.querySelectorAll('.word').forEach(w => w.classList.remove('highlight-word'));
-                if (ipaElement) ipaElement.querySelectorAll('.word').forEach(w => w.classList.remove('highlight-word'));
-            };
         }
+
+        utterance.onend = () => {
+            if (textElement) textElement.querySelectorAll('.word').forEach(w => w.classList.remove('highlight-word'));
+            if (ipaElement) ipaElement.querySelectorAll('.word').forEach(w => w.classList.remove('highlight-word'));
+            if (state.currentUtterance === utterance) {
+                state.currentUtterance = null;
+                state.lastSpokenText = null;
+            }
+        };
         
         window.speechSynthesis.speak(utterance);
     }
@@ -1296,18 +1445,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (idx === state.hardcoreIndex) cls = 'current';
             else if (sItem.sessionResult === 'pass') cls = 'pass';
             else if (sItem.sessionResult === 'fail') cls = 'fail';
-            mapHtml += `<div class="hc-map-dot ${cls}" title="${sItem.wordObj.tu_vung.replace(/<[^>]+>/g, '')}"></div>`;
+            mapHtml += `<button type="button" class="hc-map-dot ${cls}" data-index="${idx}" title="${sItem.wordObj.tu_vung.replace(/<[^>]+>/g, '')}"></button>`;
         });
 
-        // 3. Timer Formatter
-        const formatTime = (totalSeconds) => {
-            if (totalSeconds < 0) totalSeconds = 0;
-            const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-            const s = (totalSeconds % 60).toString().padStart(2, '0');
-            return `${m}:${s}`;
-        };
         const playPauseIcon = state.hcTimerIsRunning ? '<i class="fa-solid fa-pause"></i>' : '<i class="fa-solid fa-play" style="margin-left: 3px;"></i>';
-        const startValue = state.hcTimerMode === 'down' ? Math.floor(state.hcTimerValue / 60) : 10;
+        const startValue = state.hcTimerMode === 'down' && state.hcTimerValue > 0 ? Math.ceil(state.hcTimerValue / 60) : 10;
 
         els.learningView.innerHTML = `
             <div class="hc-learning-layout">
@@ -1453,12 +1595,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
 
-        // Timer Logic
-        const btnTimerPlayPause = document.getElementById('btnTimerPlayPause');
-        const btnTimerReset = document.getElementById('btnTimerReset');
-        const hcTimerInput = document.getElementById('hcTimerInput');
-        const hcTimerDisplay = document.getElementById('hcTimerDisplay');
-        const updateTimerDisplay = () => { hcTimerDisplay.innerText = formatTime(state.hcTimerValue); };
+        bindFocusTimerWidget();
+
+        document.querySelectorAll('.hc-map-dot[data-index]').forEach(dot => {
+            dot.addEventListener('click', (e) => {
+                const targetIndex = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+                if (Number.isNaN(targetIndex)) return;
+                state.hardcoreIndex = targetIndex;
+                saveCurrentHardcoreSession();
+                renderHardcoreFlashcard();
+            });
+        });
+
+        document.querySelector('.hc-map-dot.current')?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'smooth'
+        });
 
         const btnSaveHcProgress = document.getElementById('btnSaveHcProgress');
         if (btnSaveHcProgress) {
@@ -1468,66 +1621,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        btnTimerPlayPause.addEventListener('click', () => {
-            if (state.hcTimerIsRunning) {
-                clearInterval(state.hcTimerInterval);
-                state.hcTimerIsRunning = false;
-                btnTimerPlayPause.innerHTML = '<i class="fa-solid fa-play" style="margin-left: 3px;"></i>';
-            } else {
-                state.hcTimerIsRunning = true;
-                btnTimerPlayPause.innerHTML = '<i class="fa-solid fa-pause"></i>';
-
-                // If it's starting fresh and is down mode, fetch from input
-                if (state.hcTimerValue === 0 && hcTimerInput.value > 0 && state.hcTimerMode === 'down') {
-                    state.hcTimerValue = parseInt(hcTimerInput.value) * 60;
-                    updateTimerDisplay();
-                }
-
-                state.hcTimerInterval = setInterval(() => {
-                    if (state.hcTimerMode === 'down') {
-                        if (state.hcTimerValue > 0) state.hcTimerValue--;
-                    } else {
-                        state.hcTimerValue++;
-                    }
-                    updateTimerDisplay();
-                }, 1000);
-            }
-        });
-
-        btnTimerReset.addEventListener('click', () => {
-            clearInterval(state.hcTimerInterval);
-            state.hcTimerIsRunning = false;
-            btnTimerPlayPause.innerHTML = '<i class="fa-solid fa-play" style="margin-left: 3px;"></i>';
-            const inputVal = parseInt(hcTimerInput.value);
-            if (!isNaN(inputVal) && inputVal > 0) {
-                state.hcTimerMode = 'down';
-                state.hcTimerValue = inputVal * 60;
-            } else {
-                state.hcTimerMode = 'up';
-                state.hcTimerValue = 0;
-            }
-            updateTimerDisplay();
-        });
-
-        hcTimerInput.addEventListener('change', (e) => {
-            if (!state.hcTimerIsRunning) {
-                const inputVal = parseInt(e.target.value);
-                if (!isNaN(inputVal) && inputVal > 0) {
-                    state.hcTimerMode = 'down';
-                    state.hcTimerValue = inputVal * 60;
-                } else {
-                    state.hcTimerMode = 'up';
-                    state.hcTimerValue = 0;
-                }
-                updateTimerDisplay();
-            }
-        });
-
-        // If the user hasn't started the timer yet but it's first load, initialize state
-        if (!state.hcTimerIsRunning && state.hcTimerValue === 0 && parseInt(hcTimerInput.value) > 0) {
-            state.hcTimerValue = parseInt(hcTimerInput.value) * 60;
-            updateTimerDisplay();
-        }
     }
 
     function ensureTodayQueueExists() {
@@ -1676,17 +1769,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (state.currentMainView === 'learning' || state.currentMainView === 'hardcore_learning') {
                 // Audio Hotkeys
-                if (key === state.hotkeyVocab) {
+                const isHardcoreDecisionKey = state.currentMainView === 'hardcore_learning' && (key === 'n' || key === 'q');
+                if (!isHardcoreDecisionKey && key === state.hotkeyVocab) {
                     const btnAudio = els.learningView.querySelector('.play-audio-btn');
                     if (btnAudio) btnAudio.click();
-                } else if (key === state.hotkeyExample) {
+                } else if (!isHardcoreDecisionKey && key === state.hotkeyExample) {
                     const btnExample = els.learningView.querySelector('.btn-play-example');
                     if (btnExample) btnExample.click();
                 }
 
                 // Hardcore Shortcuts
                 if (state.currentMainView === 'hardcore_learning') {
-                    if (e.key === 'ArrowRight' && state.hardcoreIndex < state.hardcoreSession.length - 1) {
+                    if (key === 'n') {
+                        e.preventDefault();
+                        document.getElementById('btnHcPass')?.click();
+                    } else if (key === 'q') {
+                        e.preventDefault();
+                        document.getElementById('btnHcReject')?.click();
+                    } else if (e.key === 'ArrowRight' && state.hardcoreIndex < state.hardcoreSession.length - 1) {
                         state.hardcoreIndex++;
                         saveCurrentHardcoreSession(); // Auto-save
                         renderHardcoreFlashcard();
