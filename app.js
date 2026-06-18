@@ -37,11 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         hcTimerIsRunning: false,
         hcTimerMode: 'down', // up or down
         lastSpokenText: null,
-        currentUtterance: null,
-        cloudUser: null,
-        cloudDb: null,
-        cloudSaveTimer: null,
-        isApplyingCloudSnapshot: false
+        currentUtterance: null
     };
 
     // ── Apply xlsx/CSV override data if any ──
@@ -103,9 +99,15 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn("Could not load progress", e);
     }
 
+    // Clear ALL hardcore session snapshots from localStorage
+    function clearHardcoreSession() {
+        state.hardcoreSession = null;
+        state.hardcoreIndex = 0;
+        Object.keys(state.hardcorePlans).forEach(planId => { localStorage.removeItem(`BJT_HARDCORE_SESSION_${planId}`); });
+    }
+
     function saveStats() {
-        try { localStorage.setItem('BJT_WORD_STATS', JSON.stringify(state.wordStats)); } catch (e) {}
-        scheduleCloudSave();
+        try { localStorage.setItem('BJT_WORD_STATS', JSON.stringify(state.wordStats)); } catch (e) { console.warn("Could not save stats", e); }
     }
 
     function saveStarredWords() {
@@ -114,7 +116,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.warn("Could not save starred words", e);
         }
-        scheduleCloudSave();
     }
 
     function savePlans() {
@@ -125,8 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 localStorage.removeItem('BJT_ACTIVE_PLAN_ID');
             }
-        } catch (e) {}
-        scheduleCloudSave();
+        } catch (e) { console.warn("Could not save plans", e); }
     }
 
     function saveProgress() {
@@ -136,7 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
              console.warn("Could not save progress", e);
         }
-        scheduleCloudSave();
     }
 
     // ── Session Restore: Save/Load current album position ──
@@ -1822,16 +1821,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    function generateTodayQueue() {
-        ensureTodayQueueExists();
-        renderHardcoreDashboard();
+    // generateTodayQueue is already defined above (around line 1093). Removing duplicate.
+
+    function normalizeAllHardcorePlans() {
+        let needsSave = false;
+        Object.values(state.hardcorePlans).forEach(plan => {
+            // migration: check if using old "categories" instead of "selectedAlbums"
+            if (plan.categories && !plan.selectedAlbums) {
+                console.log(`Migrating old plan '${plan.name}' to new album-based system...`);
+                plan.selectedAlbums = plan.categories.flatMap(cat => (state.albums[cat] || []).map(alb => `${cat}|${alb}`));
+                delete plan.categories;
+                needsSave = true;
+            }
+        });
+        if (needsSave) {
+            savePlans();
+        }
     }
 
     function renderPlanManager() {
+        normalizeAllHardcorePlans();
         const hcDash = document.getElementById('hardcoreDashboard');
         if (!hcDash) return;
 
-        switchMainView('hardcore');
+        // Manually show the hardcore panel WITHOUT calling renderHardcoreDashboard(),
+        // which would overwrite the plan-list HTML we are about to set below.
+        state.currentMainView = 'hardcore';
+        pauseFocusTimer();
+        document.getElementById('learningHeader').style.display = 'none';
+        document.getElementById('learningView').style.display = 'none';
+        document.getElementById('albumGridView').style.display = 'none';
+        hcDash.style.display = 'block';
 
         let plansHtml = `
             <div class="hc-header" style="margin-bottom: 30px;">
